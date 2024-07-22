@@ -20,3 +20,6 @@
 # Go workspace file
 go.work
 go.work.sum
+
+# Sqlite3 file for tests
+*.db
