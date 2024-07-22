@@ -65,6 +65,12 @@ func NewDB(driverName string, dsns []string,
 	return resDB, errx.Wrap("init generic db", err)
 }
 
+func (db *DB) WithCtx(ctx context.Context) *DB {
+	resDB := db.copyWithCtx(db.Ctx)
+	resDB.Ctx = ctx
+	return resDB
+}
+
 func (db *DB) WithWriteToNode(criteria cluster.NodeStateCriteria) *DB {
 	resDB := db.copyWithCtx(db.Ctx)
 	resDB.WriteToNode = criteria
