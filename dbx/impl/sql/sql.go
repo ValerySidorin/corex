@@ -71,21 +71,27 @@ func (db *DB) WithCtx(ctx context.Context) *DB {
 	return resDB
 }
 
-func (db *DB) WithWriteToNode(criteria cluster.NodeStateCriteria) *DB {
+func (db *DB) WithNodeWaitTimeout(timeout time.Duration) *DB {
 	resDB := db.copyWithCtx(db.Ctx)
-	resDB.WriteToNode = criteria
+	resDB.NodeWaitTimeout = timeout
 	return resDB
 }
 
-func (db *DB) WithReadFromNode(criteria cluster.NodeStateCriteria) *DB {
+func (db *DB) WithWriteToNodeStrategy(strategy dbx.GetNodeStragegy) *DB {
 	resDB := db.copyWithCtx(db.Ctx)
-	resDB.ReadFromNode = criteria
+	resDB.WriteToNodeStrategy = strategy
 	return resDB
 }
 
-func (db *DB) WithDefaultNode(criteria cluster.NodeStateCriteria) *DB {
+func (db *DB) WithReadFromNodeStrategy(strategy dbx.GetNodeStragegy) *DB {
 	resDB := db.copyWithCtx(db.Ctx)
-	resDB.DefaultNode = criteria
+	resDB.ReadFromNodeStrategy = strategy
+	return resDB
+}
+
+func (db *DB) WithDefaultNodeStrategy(strategy dbx.GetNodeStragegy) *DB {
+	resDB := db.copyWithCtx(db.Ctx)
+	resDB.DefaultNodeStrategy = strategy
 	return resDB
 }
 
@@ -151,7 +157,7 @@ func (db *DB) Exec(query string, args ...any) (sql.Result, error) {
 		return res, errx.Wrap("exec in tx", err)
 	}
 
-	conn, err := db.WaitForWriteToConn(db.Ctx)
+	conn, err := db.GetWriteToConn(db.Ctx)
 	if err != nil {
 		return &nopResult{}, errx.Wrap("wait for write to conn", err)
 	}
@@ -167,7 +173,7 @@ func (db *DB) ExecContext(ctx context.Context, query string, args ...any) (sql.R
 		return res, errx.Wrap("exec context in tx", err)
 	}
 
-	conn, err := db.WaitForWriteToConn(ctx)
+	conn, err := db.GetWriteToConn(ctx)
 	if err != nil {
 		return &nopResult{}, errx.Wrap("wait for write to conn", err)
 	}
@@ -183,7 +189,7 @@ func (db *DB) Prepare(query string) (*sql.Stmt, error) {
 		return res, errx.Wrap("prepare in tx", err)
 	}
 
-	conn, err := db.WaitForDefaultConn(db.Ctx)
+	conn, err := db.GetDefaultConn(db.Ctx)
 	if err != nil {
 		return nil, errx.Wrap("wait for default conn", err)
 	}
@@ -199,7 +205,7 @@ func (db *DB) PrepareContext(ctx context.Context, query string) (*sql.Stmt, erro
 		return res, errx.Wrap("prepare context in tx", err)
 	}
 
-	conn, err := db.WaitForDefaultConn(ctx)
+	conn, err := db.GetDefaultConn(ctx)
 	if err != nil {
 		return nil, errx.Wrap("wait for default conn", err)
 	}
@@ -227,9 +233,9 @@ func (db *DB) QueryContext(ctx context.Context,
 	)
 
 	if db.queryWithLockChecker(query) {
-		conn, err = db.WaitForReadFromConn(ctx)
+		conn, err = db.GetReadFromConn(ctx)
 	} else {
-		conn, err = db.WaitForReadFromConn(ctx)
+		conn, err = db.GetReadFromConn(ctx)
 	}
 	if err != nil {
 		return nil, errx.Wrap("wait for conn", err)
@@ -256,9 +262,9 @@ func (db *DB) QueryRowContext(ctx context.Context, query string, args ...any) db
 	)
 
 	if db.queryWithLockChecker(query) {
-		conn, err = db.WaitForReadFromConn(ctx)
+		conn, err = db.GetReadFromConn(ctx)
 	} else {
-		conn, err = db.WaitForReadFromConn(ctx)
+		conn, err = db.GetReadFromConn(ctx)
 	}
 
 	if err != nil {
@@ -291,9 +297,9 @@ func (db *DB) withTx(ctx context.Context, opts *sql.TxOptions) (*DB, error) {
 	newDB := db.copyWithCtx(ctx)
 
 	if opts == nil || !opts.ReadOnly {
-		conn, err = newDB.WaitForWriteToConn(ctx)
+		conn, err = newDB.GetWriteToConn(ctx)
 	} else {
-		conn, err = newDB.WaitForReadFromConn(ctx)
+		conn, err = newDB.GetReadFromConn(ctx)
 	}
 
 	if err != nil {

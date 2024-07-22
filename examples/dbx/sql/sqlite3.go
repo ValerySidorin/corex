@@ -110,7 +110,10 @@ func main() {
 		fmt.Printf("id: %d, name: %s\n", r.id, r.name)
 	}
 
-	stmt, err := db.WithDefaultNode(cluster.PreferStandby).Prepare("select name from foo where id = ?")
+	stmt, err := db.
+		WithDefaultNodeStrategy(dbx.WaitForStandbyPreferred()).
+		WithNodeWaitTimeout(5 * time.Second).
+		Prepare("select name from foo where id = ?")
 	if err != nil {
 		log.Fatal("prepare", err)
 	}

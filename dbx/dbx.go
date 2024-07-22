@@ -26,10 +26,10 @@ type DBxer[TConn any, TTx any, TTxOptions any] interface {
 		f func(ctx context.Context, db DBxer[TConn, TTx, TTxOptions]) error,
 		opts TTxOptions) error
 	Tx() (TTx, error)
-	WaitForConn(ctx context.Context, criteria cluster.NodeStateCriteria) (TConn, error)
-	WaitForWriteToConn(ctx context.Context) (TConn, error)
-	WaitForReadFromConn(ctx context.Context) (TConn, error)
-	WaitForDefaultConn(ctx context.Context) (TConn, error)
+	GetConn(ctx context.Context, strategy GetNodeStragegy) (TConn, error)
+	GetWriteToConn(ctx context.Context) (TConn, error)
+	GetReadFromConn(ctx context.Context) (TConn, error)
+	GetDefaultConn(ctx context.Context) (TConn, error)
 }
 
 type ConnOpener[T any] func(ctx context.Context, driverName string, dsn string) (T, error)
@@ -40,9 +40,9 @@ type DB[T any] struct {
 
 	NodeWaitTimeout time.Duration
 
-	WriteToNode  cluster.NodeStateCriteria // This is used, when we can clearly guess, that query is a write query (for example, Exec())
-	ReadFromNode cluster.NodeStateCriteria // This is used, when we can clearly guess, that query is a read query (for example, Query())
-	DefaultNode  cluster.NodeStateCriteria // This is used, when we can not figure out, what type of request is formed (like Prepare())
+	WriteToNodeStrategy  GetNodeStragegy // This is used, when we can clearly guess, that query is a write query (for example, Exec())
+	ReadFromNodeStrategy GetNodeStragegy // This is used, when we can clearly guess, that query is a read query (for example, Query())
+	DefaultNodeStrategy  GetNodeStragegy // This is used, when we can not figure out, what type of request is formed (like Prepare())
 
 	Ctx context.Context
 }
@@ -89,20 +89,37 @@ func NewDB[T any](driverName string, dsns []string,
 	return resDB, nil
 }
 
-func (db *DB[T]) WaitForConn(ctx context.Context, criteria cluster.NodeStateCriteria) (T, error) {
-	return db.waitForDB(ctx, criteria)
+func (db *DB[T]) GetConn(ctx context.Context, strategy GetNodeStragegy) (T, error) {
+	var t T
+
+	if !strategy.Wait {
+		node := db.Cluster.Node(strategy.Criteria)
+		if node == nil {
+			return t, fmt.Errorf("node (%s) not found", strategy.Criteria)
+		}
+	}
+
+	waitCtx, cancel := context.WithTimeout(ctx, db.NodeWaitTimeout)
+	defer cancel()
+
+	node, err := db.Cluster.WaitForNode(waitCtx, strategy.Criteria)
+	if err != nil {
+		return t, fmt.Errorf("wait for node (%s): %w", strategy.Criteria, err)
+	}
+
+	return node.DB(), nil
 }
 
-func (db *DB[T]) WaitForWriteToConn(ctx context.Context) (T, error) {
-	return db.waitForDB(ctx, db.WriteToNode)
+func (db *DB[T]) GetWriteToConn(ctx context.Context) (T, error) {
+	return db.GetConn(ctx, db.WriteToNodeStrategy)
 }
 
-func (db *DB[T]) WaitForReadFromConn(ctx context.Context) (T, error) {
-	return db.waitForDB(ctx, db.ReadFromNode)
+func (db *DB[T]) GetReadFromConn(ctx context.Context) (T, error) {
+	return db.GetConn(ctx, db.ReadFromNodeStrategy)
 }
 
-func (db *DB[T]) WaitForDefaultConn(ctx context.Context) (T, error) {
-	return db.waitForDB(ctx, db.DefaultNode)
+func (db *DB[T]) GetDefaultConn(ctx context.Context) (T, error) {
+	return db.GetConn(ctx, db.DefaultNodeStrategy)
 }
 
 // Close closes all nodes in cluster.
@@ -114,23 +131,19 @@ func newDB[T any]() *DB[T] {
 	return &DB[T]{
 		Ctx:             context.Background(),
 		NodeWaitTimeout: 5 * time.Second,
-		WriteToNode:     cluster.Primary,
-		ReadFromNode:    cluster.PreferPrimary,
-		DefaultNode:     cluster.Primary,
+		WriteToNodeStrategy: GetNodeStragegy{
+			Criteria: cluster.Primary,
+			Wait:     true,
+		},
+		ReadFromNodeStrategy: GetNodeStragegy{
+			Criteria: cluster.PreferStandby,
+			Wait:     true,
+		},
+		DefaultNodeStrategy: GetNodeStragegy{
+			Criteria: cluster.Primary,
+			Wait:     true,
+		},
 	}
-}
-
-func (db *DB[T]) waitForDB(ctx context.Context, criteria cluster.NodeStateCriteria) (T, error) {
-	waitCtx, cancel := context.WithTimeout(ctx, db.NodeWaitTimeout)
-	defer cancel()
-
-	var t T
-	node, err := db.Cluster.WaitForNode(waitCtx, criteria)
-	if err != nil {
-		return t, fmt.Errorf("wait for node (%s): %w", criteria, err)
-	}
-
-	return node.DB(), nil
 }
 
 func Scan[T any](rows Rows, pointers func(*T) []interface{}) ([]T, error) {

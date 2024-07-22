@@ -15,21 +15,21 @@ func WithCtx[T any](ctx context.Context) Option[T] {
 	}
 }
 
-func WithWriteToNode[T any](criteria cluster.NodeStateCriteria) Option[T] {
+func WithWriteToNodeStrategy[T any](strategy GetNodeStragegy) Option[T] {
 	return func(db *DB[T]) {
-		db.WriteToNode = criteria
+		db.WriteToNodeStrategy = strategy
 	}
 }
 
-func WithReadFromNode[T any](criteria cluster.NodeStateCriteria) Option[T] {
+func WithReadFromNodeStrategy[T any](strategy GetNodeStragegy) Option[T] {
 	return func(db *DB[T]) {
-		db.ReadFromNode = criteria
+		db.ReadFromNodeStrategy = strategy
 	}
 }
 
-func WithDefaultNode[T any](criteria cluster.NodeStateCriteria) Option[T] {
+func WithDefaultNodeStrategy[T any](strategy GetNodeStragegy) Option[T] {
 	return func(db *DB[T]) {
-		db.DefaultNode = criteria
+		db.DefaultNodeStrategy = strategy
 	}
 }
 

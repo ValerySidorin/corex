@@ -72,7 +72,7 @@ func main() {
 		log.Fatal(http.ListenAndServe(":9999", nil))
 	}()
 
-	pool, err := db.WaitForWriteToConn(ctx)
+	pool, err := db.GetWriteToConn(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}

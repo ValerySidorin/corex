@@ -9,7 +9,6 @@ import (
 	"github.com/ValerySidorin/corex/dbx"
 	checkers "github.com/ValerySidorin/corex/dbx/checkers/pgxpoolv5"
 	closers "github.com/ValerySidorin/corex/dbx/closers/pgxpoolv5"
-	"github.com/ValerySidorin/corex/dbx/cluster"
 	"github.com/ValerySidorin/corex/errx"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -56,21 +55,27 @@ func (db *DB) WithCtx(ctx context.Context) *DB {
 	return resDB
 }
 
-func (db *DB) WithWriteToNode(criteria cluster.NodeStateCriteria) *DB {
+func (db *DB) WithNodeWaitTimeout(timeout time.Duration) *DB {
 	resDB := db.copyWithCtx(db.Ctx)
-	resDB.WriteToNode = criteria
+	resDB.NodeWaitTimeout = timeout
 	return resDB
 }
 
-func (db *DB) WithReadFromNode(criteria cluster.NodeStateCriteria) *DB {
+func (db *DB) WithWriteToNodeStrategy(strategy dbx.GetNodeStragegy) *DB {
 	resDB := db.copyWithCtx(db.Ctx)
-	resDB.ReadFromNode = criteria
+	resDB.WriteToNodeStrategy = strategy
 	return resDB
 }
 
-func (db *DB) WithDefaultNode(criteria cluster.NodeStateCriteria) *DB {
+func (db *DB) WithReadFromNodeStrategy(strategy dbx.GetNodeStragegy) *DB {
 	resDB := db.copyWithCtx(db.Ctx)
-	resDB.DefaultNode = criteria
+	resDB.ReadFromNodeStrategy = strategy
+	return resDB
+}
+
+func (db *DB) WithDefaultNodeStrategy(strategy dbx.GetNodeStragegy) *DB {
+	resDB := db.copyWithCtx(db.Ctx)
+	resDB.DefaultNodeStrategy = strategy
 	return resDB
 }
 
@@ -133,7 +138,7 @@ func (db *DB) Exec(ctx context.Context, sql string, arguments ...any) (pgconn.Co
 		return res, errx.Wrap("exec in tx", err)
 	}
 
-	pool, err := db.WaitForWriteToConn(ctx)
+	pool, err := db.GetWriteToConn(ctx)
 	if err != nil {
 		return pgconn.CommandTag{}, errx.Wrap("wait for write to conn", err)
 	}
@@ -154,9 +159,9 @@ func (db *DB) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, err
 	)
 
 	if isSelectWithLock(sql) {
-		pool, err = db.WaitForWriteToConn(ctx)
+		pool, err = db.GetWriteToConn(ctx)
 	} else {
-		pool, err = db.WaitForReadFromConn(ctx)
+		pool, err = db.GetReadFromConn(ctx)
 	}
 	if err != nil {
 		return nil, errx.Wrap("wait for conn", err)
@@ -177,9 +182,9 @@ func (db *DB) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
 	)
 
 	if isSelectWithLock(sql) {
-		pool, err = db.WaitForWriteToConn(ctx)
+		pool, err = db.GetWriteToConn(ctx)
 	} else {
-		pool, err = db.WaitForReadFromConn(ctx)
+		pool, err = db.GetReadFromConn(ctx)
 	}
 	if err != nil {
 		return &errRow{
@@ -195,7 +200,7 @@ func (db *DB) SendBatch(ctx context.Context, b *pgx.Batch) pgx.BatchResults {
 		return db.tx.SendBatch(ctx, b)
 	}
 
-	pool, err := db.WaitForDefaultConn(ctx)
+	pool, err := db.GetDefaultConn(ctx)
 	if err != nil {
 		return &errBatchResults{
 			err: errx.Wrap("wait for default conn", err),
@@ -211,7 +216,7 @@ func (db *DB) CopyFrom(ctx context.Context, tableName pgx.Identifier, columnName
 		return res, errx.Wrap("copy from in tx", err)
 	}
 
-	pool, err := db.WaitForWriteToConn(ctx)
+	pool, err := db.GetWriteToConn(ctx)
 	if err != nil {
 		return 0, errx.Wrap("wait for write to conn", err)
 	}
@@ -226,7 +231,7 @@ func (db *DB) Prepare(ctx context.Context, name, sql string) (*pgconn.StatementD
 		return res, errx.Wrap("prepare in tx", err)
 	}
 
-	pool, err := db.WaitForDefaultConn(ctx)
+	pool, err := db.GetDefaultConn(ctx)
 	if err != nil {
 		return nil, errx.Wrap("wait for write to conn", err)
 	}
@@ -283,9 +288,9 @@ func (db *DB) withTx(ctx context.Context, opts pgx.TxOptions) (*DB, error) {
 	}
 
 	if opts.AccessMode == pgx.ReadWrite {
-		conn, err = newDB.WaitForWriteToConn(ctx)
+		conn, err = newDB.GetWriteToConn(ctx)
 	} else {
-		conn, err = newDB.WaitForReadFromConn(ctx)
+		conn, err = newDB.GetReadFromConn(ctx)
 	}
 
 	if err != nil {
