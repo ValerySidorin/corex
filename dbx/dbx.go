@@ -90,6 +90,18 @@ func NewDB[T any](driverName string, dsns []string,
 	return resDB, nil
 }
 
+func (db *DB[T]) WithCtx(ctx context.Context) *DB[T] {
+	return &DB[T]{
+		Cluster:              db.Cluster,
+		clusterOpts:          db.clusterOpts,
+		NodeWaitTimeout:      db.NodeWaitTimeout,
+		WriteToNodeStrategy:  db.WriteToNodeStrategy,
+		ReadFromNodeStrategy: db.ReadFromNodeStrategy,
+		DefaultNodeStrategy:  db.DefaultNodeStrategy,
+		Ctx:                  ctx,
+	}
+}
+
 func (db *DB[T]) GetConn(ctx context.Context, strategy GetNodeStragegy) (T, error) {
 	var t T
 

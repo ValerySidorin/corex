@@ -50,32 +50,30 @@ func NewDB(dsns []string, options ...Option) (*DB, error) {
 }
 
 func (db *DB) WithCtx(ctx context.Context) *DB {
-	resDB := db.copyWithCtx(db.Ctx)
-	resDB.Ctx = ctx
-	return resDB
+	return db.copyWithCtx(ctx)
 }
 
 func (db *DB) WithNodeWaitTimeout(timeout time.Duration) *DB {
-	resDB := db.copyWithCtx(db.Ctx)
-	resDB.NodeWaitTimeout = timeout
+	resDB := db.copy()
+	resDB.DB.NodeWaitTimeout = timeout
 	return resDB
 }
 
 func (db *DB) WithWriteToNodeStrategy(strategy dbx.GetNodeStragegy) *DB {
-	resDB := db.copyWithCtx(db.Ctx)
-	resDB.WriteToNodeStrategy = strategy
+	resDB := db.copy()
+	resDB.DB.WriteToNodeStrategy = strategy
 	return resDB
 }
 
 func (db *DB) WithReadFromNodeStrategy(strategy dbx.GetNodeStragegy) *DB {
-	resDB := db.copyWithCtx(db.Ctx)
-	resDB.ReadFromNodeStrategy = strategy
+	resDB := db.copy()
+	resDB.DB.ReadFromNodeStrategy = strategy
 	return resDB
 }
 
 func (db *DB) WithDefaultNodeStrategy(strategy dbx.GetNodeStragegy) *DB {
-	resDB := db.copyWithCtx(db.Ctx)
-	resDB.DefaultNodeStrategy = strategy
+	resDB := db.copy()
+	resDB.DB.DefaultNodeStrategy = strategy
 	return resDB
 }
 
@@ -307,16 +305,23 @@ func (db *DB) withTx(ctx context.Context, opts pgx.TxOptions) (*DB, error) {
 }
 
 func (db *DB) copyWithCtx(ctx context.Context) *DB {
-	resDB := &DB{
+	return &DB{
+		DB:              db.DB.WithCtx(ctx),
+		genericOpts:     db.genericOpts,
+		poolOpener:      db.poolOpener,
+		initPingTimeout: db.initPingTimeout,
+		tx:              db.tx,
+	}
+}
+
+func (db *DB) copy() *DB {
+	return &DB{
 		DB:              db.DB,
 		genericOpts:     db.genericOpts,
 		poolOpener:      db.poolOpener,
 		initPingTimeout: db.initPingTimeout,
 		tx:              db.tx,
 	}
-	resDB.Ctx = ctx
-
-	return resDB
 }
 
 func _() dbx.DBxer[*pgxpool.Pool, pgx.Tx, pgx.TxOptions] {
