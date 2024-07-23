@@ -74,6 +74,7 @@ func NewCluster[T any](nodes []Node[T],
 		updateTimeout:  DefaultUpdateTimeout,
 		checker:        checker,
 		picker:         PickNodeRandom[T](),
+		closer:         closer,
 		nodes:          nodes,
 		errCollector:   newErrorsCollector(),
 	}

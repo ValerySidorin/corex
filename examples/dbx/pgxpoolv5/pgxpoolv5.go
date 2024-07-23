@@ -66,6 +66,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer db.Close()
 
 	http.Handle("/metrics", promhttp.Handler())
 	go func() {

@@ -30,6 +30,7 @@ type DBxer[TConn any, TTx any, TTxOptions any] interface {
 	GetWriteToConn(ctx context.Context) (TConn, error)
 	GetReadFromConn(ctx context.Context) (TConn, error)
 	GetDefaultConn(ctx context.Context) (TConn, error)
+	Close()
 }
 
 type ConnOpener[T any] func(ctx context.Context, driverName string, dsn string) (T, error)
