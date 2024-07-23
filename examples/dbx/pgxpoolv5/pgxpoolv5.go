@@ -46,7 +46,6 @@ func main() {
 		pgxpoolv5.WithGenericOptions(
 			dbx.WithCtx[*pgxpool.Pool](ctx),
 		),
-		pgxpoolv5.WithInitPingTimeout(5*time.Second),
 		pgxpoolv5.WithPoolOpener(func(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 			pool, err := pgxpoolv5.DefaultPoolOpener(ctx, dsn)
 			if err != nil {

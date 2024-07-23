@@ -1,19 +1,12 @@
 package pgxpoolv5
 
 import (
-	"time"
-
 	"github.com/ValerySidorin/corex/dbx"
+	"github.com/ValerySidorin/corex/dbx/cluster"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Option func(*DB)
-
-func WithInitPingTimeout(timeout time.Duration) Option {
-	return func(db *DB) {
-		db.initPingTimeout = timeout
-	}
-}
 
 func WithGenericOptions(options ...dbx.Option[*pgxpool.Pool]) Option {
 	return func(db *DB) {
@@ -24,5 +17,17 @@ func WithGenericOptions(options ...dbx.Option[*pgxpool.Pool]) Option {
 func WithPoolOpener(poolOpener PoolOpener) Option {
 	return func(db *DB) {
 		db.poolOpener = poolOpener
+	}
+}
+
+func WithNodeChecker(nodeChecker cluster.NodeChecker[*pgxpool.Pool]) Option {
+	return func(db *DB) {
+		db.nodeChecker = nodeChecker
+	}
+}
+
+func WithPoolCloser(poolCloser cluster.ConnCloser[*pgxpool.Pool]) Option {
+	return func(db *DB) {
+		db.poolCloser = poolCloser
 	}
 }

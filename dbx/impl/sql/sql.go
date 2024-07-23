@@ -14,7 +14,7 @@ import (
 
 const DefaultPingTimeout = 15 * time.Second
 
-type DBOpener func(driverName, dsn string) (*sql.DB, error)
+type DBOpener func(ctx context.Context, driverName, dsn string) (*sql.DB, error)
 type queryWithLockChecker func(query string) bool
 
 type DB struct {
@@ -23,9 +23,7 @@ type DB struct {
 
 	dbOpener             DBOpener
 	queryWithLockChecker queryWithLockChecker
-
-	initPingTimeout time.Duration
-	tx              *sql.Tx
+	tx                   *sql.Tx
 }
 
 // NewDB returns an instance of *DB.
@@ -43,19 +41,7 @@ func NewDB(driverName string, dsns []string,
 	var err error
 	resDB.DB, err = dbx.NewDB(driverName, dsns,
 		func(ctx context.Context, driverName, dsn string) (*sql.DB, error) {
-			db, err := resDB.dbOpener(driverName, dsn)
-			if err != nil {
-				return nil, errx.Wrap("open db", err)
-			}
-
-			pingCtx, cancel := context.WithTimeout(ctx, resDB.initPingTimeout)
-			defer cancel()
-
-			if err := db.PingContext(pingCtx); err != nil {
-				return nil, errx.Wrap("ping db", err)
-			}
-
-			return db, nil
+			return resDB.dbOpener(ctx, driverName, dsn)
 		},
 		closers.Close,
 		checker,
@@ -66,28 +52,32 @@ func NewDB(driverName string, dsns []string,
 }
 
 func (db *DB) WithCtx(ctx context.Context) *DB {
-	resDB := db.copyWithCtx(db.Ctx)
+	resDB := db.copy()
 	resDB.Ctx = ctx
 	return resDB
 }
 
 func (db *DB) WithNodeWaitTimeout(timeout time.Duration) *DB {
-	resDB := db.copyWithNodeWaitTimeout(timeout)
+	resDB := db.copy()
+	resDB.NodeWaitTimeout = timeout
 	return resDB
 }
 
 func (db *DB) WithWriteToNodeStrategy(strategy dbx.GetNodeStragegy) *DB {
-	resDB := db.copyWithWriteToNodeStrategy(strategy)
+	resDB := db.copy()
+	resDB.WriteToNodeStrategy = strategy
 	return resDB
 }
 
 func (db *DB) WithReadFromNodeStrategy(strategy dbx.GetNodeStragegy) *DB {
-	resDB := db.copyWithReadFromNodeStrategy(strategy)
+	resDB := db.copy()
+	resDB.ReadFromNodeStrategy = strategy
 	return resDB
 }
 
 func (db *DB) WithDefaultNodeStrategy(strategy dbx.GetNodeStragegy) *DB {
-	resDB := db.copyWithDefaultNodeStrategy(strategy)
+	resDB := db.copy()
+	resDB.DefaultNodeStrategy = strategy
 	return resDB
 }
 
@@ -272,9 +262,20 @@ func (db *DB) QueryRowContext(ctx context.Context, query string, args ...any) db
 
 func newDB() *DB {
 	return &DB{
-		initPingTimeout: DefaultPingTimeout,
-		dbOpener: func(driverName, dsn string) (*sql.DB, error) {
-			return sql.Open(driverName, dsn)
+		dbOpener: func(ctx context.Context, driverName, dsn string) (*sql.DB, error) {
+			db, err := sql.Open(driverName, dsn)
+			if err != nil {
+				return nil, errx.Wrap("open db", err)
+			}
+
+			pingCtx, cancel := context.WithTimeout(context.Background(), DefaultPingTimeout)
+			defer cancel()
+
+			if err := db.PingContext(pingCtx); err != nil {
+				return nil, errx.Wrap("ping db", err)
+			}
+
+			return db, nil
 		},
 	}
 }
@@ -290,7 +291,8 @@ func (db *DB) withTx(ctx context.Context, opts *sql.TxOptions) (*DB, error) {
 		err  error
 	)
 
-	newDB := db.copyWithCtx(ctx)
+	newDB := db.copy()
+	newDB.Ctx = ctx
 
 	if opts == nil || !opts.ReadOnly {
 		conn, err = newDB.GetWriteToConn(ctx)
@@ -311,57 +313,12 @@ func (db *DB) withTx(ctx context.Context, opts *sql.TxOptions) (*DB, error) {
 	return newDB, nil
 }
 
-func (db *DB) copyWithCtx(ctx context.Context) *DB {
+func (db *DB) copy() *DB {
 	return &DB{
-		DB:                   db.DB.WithCtx(ctx),
+		DB:                   db.DB.Copy(),
 		genericOpts:          db.genericOpts,
 		dbOpener:             db.dbOpener,
 		queryWithLockChecker: db.queryWithLockChecker,
-		initPingTimeout:      db.initPingTimeout,
-		tx:                   db.tx,
-	}
-}
-
-func (db *DB) copyWithNodeWaitTimeout(timeout time.Duration) *DB {
-	return &DB{
-		DB:                   db.DB.WithNodeWaitTimeout(timeout),
-		genericOpts:          db.genericOpts,
-		dbOpener:             db.dbOpener,
-		queryWithLockChecker: db.queryWithLockChecker,
-		initPingTimeout:      db.initPingTimeout,
-		tx:                   db.tx,
-	}
-}
-
-func (db *DB) copyWithWriteToNodeStrategy(strategy dbx.GetNodeStragegy) *DB {
-	return &DB{
-		DB:                   db.DB.WithWriteToNodeStrategy(strategy),
-		genericOpts:          db.genericOpts,
-		dbOpener:             db.dbOpener,
-		queryWithLockChecker: db.queryWithLockChecker,
-		initPingTimeout:      db.initPingTimeout,
-		tx:                   db.tx,
-	}
-}
-
-func (db *DB) copyWithReadFromNodeStrategy(strategy dbx.GetNodeStragegy) *DB {
-	return &DB{
-		DB:                   db.DB.WithReadFromNodeStrategy(strategy),
-		genericOpts:          db.genericOpts,
-		dbOpener:             db.dbOpener,
-		queryWithLockChecker: db.queryWithLockChecker,
-		initPingTimeout:      db.initPingTimeout,
-		tx:                   db.tx,
-	}
-}
-
-func (db *DB) copyWithDefaultNodeStrategy(strategy dbx.GetNodeStragegy) *DB {
-	return &DB{
-		DB:                   db.DB.WithDefaultNodeStrategy(strategy),
-		genericOpts:          db.genericOpts,
-		dbOpener:             db.dbOpener,
-		queryWithLockChecker: db.queryWithLockChecker,
-		initPingTimeout:      db.initPingTimeout,
 		tx:                   db.tx,
 	}
 }

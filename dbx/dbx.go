@@ -90,7 +90,7 @@ func NewDB[T any](driverName string, dsns []string,
 	return resDB, nil
 }
 
-func (db *DB[T]) WithCtx(ctx context.Context) *DB[T] {
+func (db *DB[T]) Copy() *DB[T] {
 	return &DB[T]{
 		Cluster:              db.Cluster,
 		clusterOpts:          db.clusterOpts,
@@ -98,54 +98,6 @@ func (db *DB[T]) WithCtx(ctx context.Context) *DB[T] {
 		WriteToNodeStrategy:  db.WriteToNodeStrategy,
 		ReadFromNodeStrategy: db.ReadFromNodeStrategy,
 		DefaultNodeStrategy:  db.DefaultNodeStrategy,
-		Ctx:                  ctx,
-	}
-}
-
-func (db *DB[T]) WithNodeWaitTimeout(timeout time.Duration) *DB[T] {
-	return &DB[T]{
-		Cluster:              db.Cluster,
-		clusterOpts:          db.clusterOpts,
-		NodeWaitTimeout:      timeout,
-		WriteToNodeStrategy:  db.WriteToNodeStrategy,
-		ReadFromNodeStrategy: db.ReadFromNodeStrategy,
-		DefaultNodeStrategy:  db.DefaultNodeStrategy,
-		Ctx:                  db.Ctx,
-	}
-}
-
-func (db *DB[T]) WithWriteToNodeStrategy(strategy GetNodeStragegy) *DB[T] {
-	return &DB[T]{
-		Cluster:              db.Cluster,
-		clusterOpts:          db.clusterOpts,
-		NodeWaitTimeout:      db.NodeWaitTimeout,
-		WriteToNodeStrategy:  strategy,
-		ReadFromNodeStrategy: db.ReadFromNodeStrategy,
-		DefaultNodeStrategy:  db.DefaultNodeStrategy,
-		Ctx:                  db.Ctx,
-	}
-}
-
-func (db *DB[T]) WithReadFromNodeStrategy(strategy GetNodeStragegy) *DB[T] {
-	return &DB[T]{
-		Cluster:              db.Cluster,
-		clusterOpts:          db.clusterOpts,
-		NodeWaitTimeout:      db.NodeWaitTimeout,
-		WriteToNodeStrategy:  db.WriteToNodeStrategy,
-		ReadFromNodeStrategy: strategy,
-		DefaultNodeStrategy:  db.DefaultNodeStrategy,
-		Ctx:                  db.Ctx,
-	}
-}
-
-func (db *DB[T]) WithDefaultNodeStrategy(strategy GetNodeStragegy) *DB[T] {
-	return &DB[T]{
-		Cluster:              db.Cluster,
-		clusterOpts:          db.clusterOpts,
-		NodeWaitTimeout:      db.NodeWaitTimeout,
-		WriteToNodeStrategy:  db.WriteToNodeStrategy,
-		ReadFromNodeStrategy: db.ReadFromNodeStrategy,
-		DefaultNodeStrategy:  strategy,
 		Ctx:                  db.Ctx,
 	}
 }

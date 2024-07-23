@@ -9,6 +9,7 @@ import (
 	"github.com/ValerySidorin/corex/dbx"
 	checkers "github.com/ValerySidorin/corex/dbx/checkers/pgxpoolv5"
 	closers "github.com/ValerySidorin/corex/dbx/closers/pgxpoolv5"
+	"github.com/ValerySidorin/corex/dbx/cluster"
 	"github.com/ValerySidorin/corex/errx"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -23,10 +24,11 @@ type DB struct {
 	*dbx.DB[*pgxpool.Pool]
 	genericOpts []dbx.Option[*pgxpool.Pool]
 
-	poolOpener PoolOpener
+	poolOpener  PoolOpener
+	poolCloser  cluster.ConnCloser[*pgxpool.Pool]
+	nodeChecker cluster.NodeChecker[*pgxpool.Pool]
 
-	initPingTimeout time.Duration
-	tx              pgx.Tx
+	tx pgx.Tx
 }
 
 func NewDB(dsns []string, options ...Option) (*DB, error) {
@@ -39,10 +41,15 @@ func NewDB(dsns []string, options ...Option) (*DB, error) {
 	var err error
 	resDB.DB, err = dbx.NewDB("pgx", dsns,
 		func(ctx context.Context, driverName, dsn string) (*pgxpool.Pool, error) {
-			return resDB.poolOpener(ctx, dsn)
+			pool, err := resDB.poolOpener(ctx, dsn)
+			if err != nil {
+				return nil, errx.Wrap("open pool", err)
+			}
+
+			return pool, nil
 		},
-		closers.Close,
-		checkers.Check,
+		resDB.poolCloser,
+		resDB.nodeChecker,
 		resDB.genericOpts...,
 	)
 
@@ -50,26 +57,32 @@ func NewDB(dsns []string, options ...Option) (*DB, error) {
 }
 
 func (db *DB) WithCtx(ctx context.Context) *DB {
-	return db.copyWithCtx(ctx)
+	resDB := db.copy()
+	resDB.Ctx = ctx
+	return resDB
 }
 
 func (db *DB) WithNodeWaitTimeout(timeout time.Duration) *DB {
-	resDB := db.copyWithNodeWaitTimeout(timeout)
+	resDB := db.copy()
+	resDB.NodeWaitTimeout = timeout
 	return resDB
 }
 
 func (db *DB) WithWriteToNodeStrategy(strategy dbx.GetNodeStragegy) *DB {
-	resDB := db.copyWithWriteToNodeStrategy(strategy)
+	resDB := db.copy()
+	resDB.WriteToNodeStrategy = strategy
 	return resDB
 }
 
 func (db *DB) WithReadFromNodeStrategy(strategy dbx.GetNodeStragegy) *DB {
-	resDB := db.copyWithReadFromNodeStrategy(strategy)
+	resDB := db.copy()
+	resDB.ReadFromNodeStrategy = strategy
 	return resDB
 }
 
 func (db *DB) WithDefaultNodeStrategy(strategy dbx.GetNodeStragegy) *DB {
-	resDB := db.copyWithDefaultNodeStrategy(strategy)
+	resDB := db.copy()
+	resDB.DefaultNodeStrategy = strategy
 	return resDB
 }
 
@@ -250,13 +263,21 @@ func DefaultPoolOpener(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 		return nil, errx.Wrap("open pgx pool", err)
 	}
 
+	pingCtx, cancel := context.WithTimeout(ctx, DefaultPingTimeout)
+	defer cancel()
+
+	if err := pool.Ping(pingCtx); err != nil {
+		return nil, errx.Wrap("ping db", err)
+	}
+
 	return pool, nil
 }
 
 func newDB() *DB {
 	return &DB{
-		poolOpener:      DefaultPoolOpener,
-		initPingTimeout: DefaultPingTimeout,
+		poolOpener:  DefaultPoolOpener,
+		poolCloser:  closers.Close,
+		nodeChecker: checkers.Check,
 	}
 }
 
@@ -267,7 +288,8 @@ func (db *DB) withTx(ctx context.Context, opts pgx.TxOptions) (*DB, error) {
 		err  error
 	)
 
-	newDB := db.copyWithCtx(ctx)
+	newDB := db.copy()
+	newDB.Ctx = ctx
 
 	if newDB.tx != nil {
 		txConn := newDB.tx.Conn()
@@ -300,53 +322,14 @@ func (db *DB) withTx(ctx context.Context, opts pgx.TxOptions) (*DB, error) {
 	return newDB, nil
 }
 
-func (db *DB) copyWithCtx(ctx context.Context) *DB {
+func (db *DB) copy() *DB {
 	return &DB{
-		DB:              db.DB.WithCtx(ctx),
-		genericOpts:     db.genericOpts,
-		poolOpener:      db.poolOpener,
-		initPingTimeout: db.initPingTimeout,
-		tx:              db.tx,
-	}
-}
-
-func (db *DB) copyWithNodeWaitTimeout(timeout time.Duration) *DB {
-	return &DB{
-		DB:              db.DB.WithNodeWaitTimeout(timeout),
-		genericOpts:     db.genericOpts,
-		poolOpener:      db.poolOpener,
-		initPingTimeout: db.initPingTimeout,
-		tx:              db.tx,
-	}
-}
-
-func (db *DB) copyWithWriteToNodeStrategy(strategy dbx.GetNodeStragegy) *DB {
-	return &DB{
-		DB:              db.DB.WithWriteToNodeStrategy(strategy),
-		genericOpts:     db.genericOpts,
-		poolOpener:      db.poolOpener,
-		initPingTimeout: db.initPingTimeout,
-		tx:              db.tx,
-	}
-}
-
-func (db *DB) copyWithReadFromNodeStrategy(strategy dbx.GetNodeStragegy) *DB {
-	return &DB{
-		DB:              db.DB.WithReadFromNodeStrategy(strategy),
-		genericOpts:     db.genericOpts,
-		poolOpener:      db.poolOpener,
-		initPingTimeout: db.initPingTimeout,
-		tx:              db.tx,
-	}
-}
-
-func (db *DB) copyWithDefaultNodeStrategy(strategy dbx.GetNodeStragegy) *DB {
-	return &DB{
-		DB:              db.DB.WithDefaultNodeStrategy(strategy),
-		genericOpts:     db.genericOpts,
-		poolOpener:      db.poolOpener,
-		initPingTimeout: db.initPingTimeout,
-		tx:              db.tx,
+		DB:          db.DB.Copy(),
+		genericOpts: db.genericOpts,
+		poolOpener:  db.poolOpener,
+		poolCloser:  db.poolCloser,
+		nodeChecker: db.nodeChecker,
+		tx:          db.tx,
 	}
 }
 
