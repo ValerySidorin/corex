@@ -102,6 +102,54 @@ func (db *DB[T]) WithCtx(ctx context.Context) *DB[T] {
 	}
 }
 
+func (db *DB[T]) WithNodeWaitTimeout(timeout time.Duration) *DB[T] {
+	return &DB[T]{
+		Cluster:              db.Cluster,
+		clusterOpts:          db.clusterOpts,
+		NodeWaitTimeout:      timeout,
+		WriteToNodeStrategy:  db.WriteToNodeStrategy,
+		ReadFromNodeStrategy: db.ReadFromNodeStrategy,
+		DefaultNodeStrategy:  db.DefaultNodeStrategy,
+		Ctx:                  db.Ctx,
+	}
+}
+
+func (db *DB[T]) WithWriteToNodeStrategy(strategy GetNodeStragegy) *DB[T] {
+	return &DB[T]{
+		Cluster:              db.Cluster,
+		clusterOpts:          db.clusterOpts,
+		NodeWaitTimeout:      db.NodeWaitTimeout,
+		WriteToNodeStrategy:  strategy,
+		ReadFromNodeStrategy: db.ReadFromNodeStrategy,
+		DefaultNodeStrategy:  db.DefaultNodeStrategy,
+		Ctx:                  db.Ctx,
+	}
+}
+
+func (db *DB[T]) WithReadFromNodeStrategy(strategy GetNodeStragegy) *DB[T] {
+	return &DB[T]{
+		Cluster:              db.Cluster,
+		clusterOpts:          db.clusterOpts,
+		NodeWaitTimeout:      db.NodeWaitTimeout,
+		WriteToNodeStrategy:  db.WriteToNodeStrategy,
+		ReadFromNodeStrategy: strategy,
+		DefaultNodeStrategy:  db.DefaultNodeStrategy,
+		Ctx:                  db.Ctx,
+	}
+}
+
+func (db *DB[T]) WithDefaultNodeStrategy(strategy GetNodeStragegy) *DB[T] {
+	return &DB[T]{
+		Cluster:              db.Cluster,
+		clusterOpts:          db.clusterOpts,
+		NodeWaitTimeout:      db.NodeWaitTimeout,
+		WriteToNodeStrategy:  db.WriteToNodeStrategy,
+		ReadFromNodeStrategy: db.ReadFromNodeStrategy,
+		DefaultNodeStrategy:  strategy,
+		Ctx:                  db.Ctx,
+	}
+}
+
 func (db *DB[T]) GetConn(ctx context.Context, strategy GetNodeStragegy) (T, error) {
 	var t T
 

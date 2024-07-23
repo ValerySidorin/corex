@@ -54,26 +54,22 @@ func (db *DB) WithCtx(ctx context.Context) *DB {
 }
 
 func (db *DB) WithNodeWaitTimeout(timeout time.Duration) *DB {
-	resDB := db.copy()
-	resDB.DB.NodeWaitTimeout = timeout
+	resDB := db.copyWithNodeWaitTimeout(timeout)
 	return resDB
 }
 
 func (db *DB) WithWriteToNodeStrategy(strategy dbx.GetNodeStragegy) *DB {
-	resDB := db.copy()
-	resDB.DB.WriteToNodeStrategy = strategy
+	resDB := db.copyWithWriteToNodeStrategy(strategy)
 	return resDB
 }
 
 func (db *DB) WithReadFromNodeStrategy(strategy dbx.GetNodeStragegy) *DB {
-	resDB := db.copy()
-	resDB.DB.ReadFromNodeStrategy = strategy
+	resDB := db.copyWithReadFromNodeStrategy(strategy)
 	return resDB
 }
 
 func (db *DB) WithDefaultNodeStrategy(strategy dbx.GetNodeStragegy) *DB {
-	resDB := db.copy()
-	resDB.DB.DefaultNodeStrategy = strategy
+	resDB := db.copyWithDefaultNodeStrategy(strategy)
 	return resDB
 }
 
@@ -314,9 +310,39 @@ func (db *DB) copyWithCtx(ctx context.Context) *DB {
 	}
 }
 
-func (db *DB) copy() *DB {
+func (db *DB) copyWithNodeWaitTimeout(timeout time.Duration) *DB {
 	return &DB{
-		DB:              db.DB,
+		DB:              db.DB.WithNodeWaitTimeout(timeout),
+		genericOpts:     db.genericOpts,
+		poolOpener:      db.poolOpener,
+		initPingTimeout: db.initPingTimeout,
+		tx:              db.tx,
+	}
+}
+
+func (db *DB) copyWithWriteToNodeStrategy(strategy dbx.GetNodeStragegy) *DB {
+	return &DB{
+		DB:              db.DB.WithWriteToNodeStrategy(strategy),
+		genericOpts:     db.genericOpts,
+		poolOpener:      db.poolOpener,
+		initPingTimeout: db.initPingTimeout,
+		tx:              db.tx,
+	}
+}
+
+func (db *DB) copyWithReadFromNodeStrategy(strategy dbx.GetNodeStragegy) *DB {
+	return &DB{
+		DB:              db.DB.WithReadFromNodeStrategy(strategy),
+		genericOpts:     db.genericOpts,
+		poolOpener:      db.poolOpener,
+		initPingTimeout: db.initPingTimeout,
+		tx:              db.tx,
+	}
+}
+
+func (db *DB) copyWithDefaultNodeStrategy(strategy dbx.GetNodeStragegy) *DB {
+	return &DB{
+		DB:              db.DB.WithDefaultNodeStrategy(strategy),
 		genericOpts:     db.genericOpts,
 		poolOpener:      db.poolOpener,
 		initPingTimeout: db.initPingTimeout,
