@@ -52,7 +52,7 @@ func main() {
 				cluster.WithUpdateInterval[*stdsql.DB](2*time.Second),
 			),
 		),
-		sql.WithDBOpener(otelxsql.DBOpener(
+		sql.WithDBOpener(otelxsql.OpenDB(
 			otelsql.WithAttributes(semconv.DBSystemSqlite),
 		)),
 	)

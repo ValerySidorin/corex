@@ -8,7 +8,7 @@ import (
 	"github.com/XSAM/otelsql"
 )
 
-func DBOpener(opts ...otelsql.Option) func(context.Context, string, string) (*sql.DB, error) {
+func OpenDB(opts ...otelsql.Option) func(context.Context, string, string) (*sql.DB, error) {
 	return func(ctx context.Context, driverName, dsn string) (*sql.DB, error) {
 		db, err := otelsql.Open(driverName, dsn, opts...)
 		if err != nil {

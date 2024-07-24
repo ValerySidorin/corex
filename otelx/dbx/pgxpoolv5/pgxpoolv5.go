@@ -10,7 +10,7 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 )
 
-func PoolOpenerWithTracer() func(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
+func OpenPoolWithTracer() func(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 	return func(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
 		pConf, err := pgxpool.ParseConfig(dsn)
 		if err != nil {

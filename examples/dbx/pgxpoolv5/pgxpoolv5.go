@@ -9,14 +9,13 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/IBM/pgxpoolprometheus"
 	"github.com/ValerySidorin/corex/dbx"
 	"github.com/ValerySidorin/corex/dbx/impl/pgxpoolv5"
 	"github.com/ValerySidorin/corex/errx"
 	"github.com/ValerySidorin/corex/otelx"
+	promx "github.com/ValerySidorin/corex/promx/pgxpoolv5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel/sdk/resource"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
@@ -47,19 +46,7 @@ func main() {
 			dbx.WithCtx[*pgxpool.Pool](ctx),
 		),
 		pgxpoolv5.WithPoolOpener(func(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
-			pool, err := pgxpoolv5.DefaultPoolOpener(ctx, dsn)
-			if err != nil {
-				return nil, errx.Wrap("open pool", err)
-			}
-
-			collector := pgxpoolprometheus.NewCollector(pool,
-				map[string]string{
-					"db_name": "test",
-					"host":    pool.Config().ConnConfig.Host,
-				})
-			prometheus.MustRegister(collector)
-
-			return pool, nil
+			return promx.OpenPool(ctx, dsn, pgxpoolv5.DefaultPoolOpener)
 		}),
 	)
 	if err != nil {
