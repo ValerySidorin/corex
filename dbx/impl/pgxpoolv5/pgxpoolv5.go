@@ -252,7 +252,7 @@ func (db *DB) Prepare(ctx context.Context, name, sql string) (*pgconn.StatementD
 
 func newDB() *DB {
 	return &DB{
-		poolOpener:  DefaultPoolOpener(),
+		poolOpener:  DefaultPoolOpener,
 		poolCloser:  closers.Close,
 		nodeChecker: checkers.Check,
 	}

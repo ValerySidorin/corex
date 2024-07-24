@@ -14,7 +14,6 @@ import (
 	"github.com/ValerySidorin/corex/errx"
 	"github.com/ValerySidorin/corex/otelx"
 	otelxpgxpoolv5 "github.com/ValerySidorin/corex/otelx/dbx/pgxpoolv5"
-	promx "github.com/ValerySidorin/corex/promx/pgxpoolv5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -47,11 +46,7 @@ func main() {
 			dbx.WithCtx[*pgxpool.Pool](ctx),
 		),
 		pgxpoolv5.WithPoolOpener(
-			pgxpoolv5.CustomPoolOpener(
-				pgxpoolv5.DefaultPoolOpener(),
-				otelxpgxpoolv5.PoolOpenerWithTracerCallback(),
-				promx.PoolOpenerCallback(),
-			),
+			otelxpgxpoolv5.PoolOpener(),
 		),
 	)
 	if err != nil {

@@ -261,7 +261,7 @@ func (db *DB) QueryRowContext(ctx context.Context, query string, args ...any) db
 
 func newDB() *DB {
 	return &DB{
-		dbOpener: DefaultDBOpener(),
+		dbOpener: DefaultDBOpener,
 	}
 }
 
