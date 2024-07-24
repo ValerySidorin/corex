@@ -17,6 +17,7 @@ import (
 	"github.com/ValerySidorin/corex/dbx/impl/sql"
 	"github.com/ValerySidorin/corex/otelx"
 	otelxsql "github.com/ValerySidorin/corex/otelx/dbx/sql"
+	"github.com/XSAM/otelsql"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -52,7 +53,17 @@ func main() {
 			),
 		),
 		sql.WithDBOpener(
-			otelxsql.DBOpener(),
+			otelxsql.DBOpener(
+				otelxsql.WithOtelSqlOptBuilder(
+					func(dsn string) []otelsql.Option {
+						return []otelsql.Option{
+							otelsql.WithAttributes(
+								otelxsql.GetHostAttribute(dsn),
+							),
+						}
+					},
+				),
+			),
 		),
 	)
 	if err != nil {

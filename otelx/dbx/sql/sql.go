@@ -11,23 +11,34 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
+var (
+	defaultDbOpenerOptBuilder = func(dsn string) []otelsql.Option {
+		return []otelsql.Option{
+			otelsql.WithAttributes(
+				GetHostAttribute(dsn),
+				GetDBNameAttribute(dsn),
+			),
+		}
+	}
+
+	GetHostAttribute = func(dsn string) attribute.KeyValue {
+		host, _ := dbx.GetHost(dsn)
+		return attribute.String("host", host)
+	}
+
+	GetDBNameAttribute = func(dsn string) attribute.KeyValue {
+		dbname, _ := dbx.GetDatabase(dsn)
+		return attribute.String("database", dbname)
+	}
+)
+
 type DBOpenerConfig struct {
 	DBOpenerOptBuilder func(string) []otelsql.Option
 }
 
 func newDBOpenerConfig() *DBOpenerConfig {
 	return &DBOpenerConfig{
-		DBOpenerOptBuilder: func(dsn string) []otelsql.Option {
-			host, _ := dbx.GetHost(dsn)
-			dbname, _ := dbx.GetDatabase(dsn)
-
-			return []otelsql.Option{
-				otelsql.WithAttributes(
-					attribute.String("host", host),
-					attribute.String("database", dbname),
-				),
-			}
-		},
+		DBOpenerOptBuilder: defaultDbOpenerOptBuilder,
 	}
 }
 
