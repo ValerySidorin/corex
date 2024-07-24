@@ -62,22 +62,15 @@ func NewDB[T any](driverName string, dsns []string,
 	nodes := make([]cluster.Node[T], 0, len(dsns))
 
 	for _, dsn := range dsns {
-		conn, err := connOpener(resDB.Ctx, driverName, dsn)
+		node, err := nodeFromConn(resDB.Ctx, driverName, dsn, connOpener)
 		if err != nil {
-			return nil, errx.Wrap("open conn", err)
+			for _, n := range nodes {
+				connCloser(n.DB())
+			}
+			return nil, errx.Wrap("create node from conn", err)
 		}
 
-		safeAddr, err := getSafeAddr(dsn)
-		if err != nil {
-			return nil, errx.Wrap("parse db url", err)
-		}
-
-		nodeAddr := safeAddr.host
-		if nodeAddr == "" {
-			nodeAddr = safeAddr.String()
-		}
-
-		nodes = append(nodes, cluster.NewNode(nodeAddr, conn))
+		nodes = append(nodes, node)
 	}
 
 	cl, err := cluster.NewCluster(
@@ -159,21 +152,21 @@ func newDB[T any]() *DB[T] {
 	}
 }
 
-func Scan[T any](rows Rows, pointers func(*T) []interface{}) ([]T, error) {
-	var res = []T{}
-
-	for rows.Next() {
-		var elem T
-		if err := rows.Scan(pointers(&elem)...); err != nil {
-			return nil, errx.Wrap("row scan", err)
-		}
-
-		res = append(res, elem)
+func nodeFromConn[T any](ctx context.Context, driverName, dsn string, connOpener ConnOpener[T]) (cluster.Node[T], error) {
+	conn, err := connOpener(ctx, driverName, dsn)
+	if err != nil {
+		return nil, errx.Wrap("open conn", err)
 	}
 
-	if rows.Err() != nil {
-		return nil, errx.Wrap("rows err", rows.Err())
+	safeAddr, err := getSafeAddr(dsn)
+	if err != nil {
+		return nil, errx.Wrap("parse db url", err)
 	}
 
-	return res, nil
+	nodeAddr := safeAddr.host
+	if nodeAddr == "" {
+		nodeAddr = safeAddr.String()
+	}
+
+	return cluster.NewNode(nodeAddr, conn), nil
 }

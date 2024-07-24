@@ -14,7 +14,6 @@ import (
 
 const DefaultPingTimeout = 15 * time.Second
 
-type DBOpener func(ctx context.Context, driverName, dsn string) (*sql.DB, error)
 type queryWithLockChecker func(query string) bool
 
 type DB struct {
@@ -262,21 +261,7 @@ func (db *DB) QueryRowContext(ctx context.Context, query string, args ...any) db
 
 func newDB() *DB {
 	return &DB{
-		dbOpener: func(ctx context.Context, driverName, dsn string) (*sql.DB, error) {
-			db, err := sql.Open(driverName, dsn)
-			if err != nil {
-				return nil, errx.Wrap("open db", err)
-			}
-
-			pingCtx, cancel := context.WithTimeout(context.Background(), DefaultPingTimeout)
-			defer cancel()
-
-			if err := db.PingContext(pingCtx); err != nil {
-				return nil, errx.Wrap("ping db", err)
-			}
-
-			return db, nil
-		},
+		dbOpener: DefaultDBOpener(),
 	}
 }
 

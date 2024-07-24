@@ -18,8 +18,6 @@ import (
 
 const DefaultPingTimeout = 15 * time.Second
 
-type PoolOpener func(ctx context.Context, dsn string) (*pgxpool.Pool, error)
-
 type DB struct {
 	*dbx.DB[*pgxpool.Pool]
 	genericOpts []dbx.Option[*pgxpool.Pool]
@@ -252,30 +250,9 @@ func (db *DB) Prepare(ctx context.Context, name, sql string) (*pgconn.StatementD
 	return res, errx.Wrap("prepare", err)
 }
 
-func DefaultPoolOpener(ctx context.Context, dsn string) (*pgxpool.Pool, error) {
-	pConf, err := pgxpool.ParseConfig(dsn)
-	if err != nil {
-		return nil, errx.Wrap("parse pgx conn config", err)
-	}
-
-	pool, err := pgxpool.NewWithConfig(ctx, pConf)
-	if err != nil {
-		return nil, errx.Wrap("open pgx pool", err)
-	}
-
-	pingCtx, cancel := context.WithTimeout(ctx, DefaultPingTimeout)
-	defer cancel()
-
-	if err := pool.Ping(pingCtx); err != nil {
-		return nil, errx.Wrap("ping db", err)
-	}
-
-	return pool, nil
-}
-
 func newDB() *DB {
 	return &DB{
-		poolOpener:  DefaultPoolOpener,
+		poolOpener:  DefaultPoolOpener(),
 		poolCloser:  closers.Close,
 		nodeChecker: checkers.Check,
 	}

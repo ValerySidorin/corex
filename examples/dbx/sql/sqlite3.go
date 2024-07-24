@@ -45,6 +45,8 @@ func main() {
 		log.Fatal("init otel: ", err)
 	}
 
+	otelOpts := []otelsql.Option{otelsql.WithAttributes(semconv.DBSystemSqlite)}
+
 	db, err := sql.NewDB("sqlite3", []string{"./foo.db"}, checkers.NopCheck,
 		sql.WithGenericOptions(
 			dbx.WithCtx[*stdsql.DB](ctx),
@@ -52,9 +54,11 @@ func main() {
 				cluster.WithUpdateInterval[*stdsql.DB](2*time.Second),
 			),
 		),
-		sql.WithDBOpener(otelxsql.OpenDB(
-			otelsql.WithAttributes(semconv.DBSystemSqlite),
-		)),
+		sql.WithDBOpener(
+			sql.CustomDBOpener(
+				otelxsql.DBOpener(otelOpts...),
+			),
+		),
 	)
 	if err != nil {
 		log.Fatal("new db: ", err)

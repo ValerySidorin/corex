@@ -1,11 +1,7 @@
 package pgxpoolv5
 
 import (
-	"context"
-
 	"github.com/IBM/pgxpoolprometheus"
-	"github.com/ValerySidorin/corex/dbx/impl/pgxpoolv5"
-	"github.com/ValerySidorin/corex/errx"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -32,19 +28,14 @@ func WithPromLabelsBuilder(builder func(pool *pgxpool.Pool) map[string]string) f
 	}
 }
 
-func OpenPool(ctx context.Context, dsn string,
-	poolOpener pgxpoolv5.PoolOpener, options ...func(cfg *PoolOpenerConfig)) (*pgxpool.Pool, error) {
-	pool, err := poolOpener(ctx, dsn)
-	if err != nil {
-		return nil, errx.Wrap("open pool", err)
+func PoolOpenerCallback(options ...func(cfg *PoolOpenerConfig)) func(*pgxpool.Pool) error {
+	return func(pool *pgxpool.Pool) error {
+		cfg := newPoolOpenerConfig(options...)
+
+		collector := pgxpoolprometheus.NewCollector(pool, cfg.PromLabelsBuilder(pool))
+		prometheus.MustRegister(collector)
+		return nil
 	}
-
-	cfg := newPoolOpenerConfig(options...)
-
-	collector := pgxpoolprometheus.NewCollector(pool, cfg.PromLabelsBuilder(pool))
-	prometheus.MustRegister(collector)
-
-	return pool, nil
 }
 
 func defaultPromLabelsBuilder(pool *pgxpool.Pool) map[string]string {
